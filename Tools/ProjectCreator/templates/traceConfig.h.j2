@@ -1,0 +1,25 @@
+#ifndef TRACECONFIG
+#define TRACECONFIG
+
+/**
+ * Set the platform that is used.
+ */
+//#define TRACE_STM32L476RG
+#define TRACE_PICO2
+
+/**
+ * Enable if the board has PSRAM and this should be used
+ */
+{% if psram == True %}#define PICO_USE_PSRAM{% else %}//#define PICO_USE_PSRAM{% endif %}
+
+/**
+ * Enable this to trace IRQ enter/exit
+ */
+#define TRACE_ENABLE_IRQ_TRACE
+
+/** 
+ * Enable this to trace idle events
+ */
+#define TRACE_ENABLE_IDLE_TRACE
+
+#endif /* TRACECONFIG */

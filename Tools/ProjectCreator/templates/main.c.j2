@@ -1,0 +1,54 @@
+#include <stdio.h>{% if noRTOS == False %}
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "semphr.h"{% endif %}{% if trace == True %}
+#include "trace.h"{% endif %}
+#include "bsp.h"{% if noRTOS == False %}
+
+TaskHandle_t    blinkTsk; /* Handle for the LED task. */
+
+/**
+ * @brief Blink task.
+ * 
+ * @param args Task period (uint32_t).
+ */
+void blink_task(void *args);{% endif %}
+
+/*************************************************************/
+
+/**
+ * @brief Main function.
+ * 
+ * @return int 
+ */
+int main()
+{
+    BSP_Init();             /* Initialize all components on the lab-kit. */
+    {% if noRTOS == False %}{% if trace == True %}trace_init();           /* Initialize the traceing infrastructure. */
+    {% endif %}
+    /* Create the tasks. */
+    xTaskCreate(blink_task, "Blink Task", 512, (void*) 1000, 2, &blinkTsk);
+
+    
+    vTaskStartScheduler();  /* Start the scheduler. */
+    {% endif %}
+    while (true) { {% if noRTOS == True %}
+        BSP_ToggleLED(LED_GREEN);{% endif %}
+        sleep_ms(1000); {% if noRTOS == False %}/* Should not reach here... */{% endif %}
+    }
+}
+/*-----------------------------------------------------------*/
+{% if noRTOS == False %}
+void blink_task(void *args) {
+    TickType_t xLastWakeTime = 0;
+    const TickType_t xPeriod = (int)args;   /* Get period (in ticks) from argument. */
+
+    for (;;) {
+        BSP_ToggleLED(LED_GREEN);
+
+        vTaskDelayUntil(&xLastWakeTime, xPeriod);   /* Wait for the next release. */
+    }
+}
+/*-----------------------------------------------------------*/
+{% endif %}

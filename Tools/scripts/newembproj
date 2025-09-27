@@ -1,0 +1,21 @@
+#!/bin/bash
+
+if [[ ! -d ~/Documents/ES-Lab-Kit/Tools/ProjectCreator ]]
+then
+  printf "Error: ProjectCreator not found here ~/Documents/ES-Lab-Kit/Tools/ProjectCreator. Did you run the install.sh script?\n"
+  exit -1
+fi
+
+cd ~/Documents/ES-Lab-Kit/Tools/ProjectCreator
+
+if [[ ! -d .venv ]]                                   # In case t he virtual environment does not exist...
+then
+  uv venv                                             # Create the virtual environment
+  source .venv/bin/activate                           # Activate the Python virtual environment
+  uv pip install -r requirements.txt --link-mode=copy  # Install all dependencies
+  deactivate                                          # Leave the Python virtial environment again
+fi
+
+source .venv/bin/activate                             # Activate the Python virtual environment
+python ProjectCreator.py "$@"                         # Call the Python program with all passed arguments
+deactivate                                            # Deactivate the Python virtual environment
