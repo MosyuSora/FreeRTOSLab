@@ -1,50 +1,94 @@
 #include <stdio.h>
 #include "FreeRTOS.h"
 #include "task.h"
-#include "queue.h"
 #include "semphr.h"
 #include "bsp.h"
 
-TaskHandle_t    blinkTsk; /* Handle for the LED task. */
+#define STEP_TIME_MS 2000
 
-/**
- * @brief Blink task.
- * 
- * @param args Task period (uint32_t).
- */
-void blink_task(void *args);
+// 使用两个独立的信号量
+SemaphoreHandle_t semRedDone;
+SemaphoreHandle_t semGreenDone;
+
+void vTaskGreen(void *pvParameters);
+void vTaskRed(void *pvParameters);
 
 /*************************************************************/
 
-/**
- * @brief Main function.
- * 
- * @return int 
- */
 int main()
 {
     BSP_Init();             /* Initialize all components on the lab-kit. */
     
-    /* Create the tasks. */
-    xTaskCreate(blink_task, "Blink Task", 512, (void*) 1000, 2, &blinkTsk);
+    semRedDone = xSemaphoreCreateBinary();
+    semGreenDone = xSemaphoreCreateBinary();
 
-    
+    /* 初始状态：两个LED都开启 */
+    BSP_SetLED(LED_RED, true);
+    BSP_SetLED(LED_GREEN, true);
+
+    xTaskCreate(vTaskRed, "RedTask", 256, NULL, 1, NULL);
+    xTaskCreate(vTaskGreen, "GreenTask", 256, NULL, 1, NULL);
+
     vTaskStartScheduler();  /* Start the scheduler. */
     
     while (true) { 
-        sleep_ms(1000); /* Should not reach here... */
+        /* Should not reach here... */
     }
 }
 /*-----------------------------------------------------------*/
 
-void blink_task(void *args) {
-    TickType_t xLastWakeTime = 0;
-    const TickType_t xPeriod = (int)args;   /* Get period (in ticks) from argument. */
-
-    for (;;) {
-        BSP_ToggleLED(LED_GREEN);
-
-        vTaskDelayUntil(&xLastWakeTime, xPeriod);   /* Wait for the next release. */
+void vTaskRed(void *pvParameters) {
+    while (1) {
+        // 周期1: 红亮 (2秒)
+        BSP_SetLED(LED_RED, true);
+        vTaskDelay(pdMS_TO_TICKS(STEP_TIME_MS));
+        xSemaphoreGive(semRedDone); // 通知绿灯任务红灯完成
+        xSemaphoreTake(semGreenDone, portMAX_DELAY); // 等待绿灯任务完成
+        
+        // 周期2: 红亮 (2秒)
+        BSP_SetLED(LED_RED, true);
+        vTaskDelay(pdMS_TO_TICKS(STEP_TIME_MS));
+        xSemaphoreGive(semRedDone);
+        xSemaphoreTake(semGreenDone, portMAX_DELAY);
+        
+        // 周期3: 红灭 (2秒)
+        BSP_SetLED(LED_RED, false);
+        vTaskDelay(pdMS_TO_TICKS(STEP_TIME_MS));
+        xSemaphoreGive(semRedDone);
+        xSemaphoreTake(semGreenDone, portMAX_DELAY);
+        
+        // 周期4: 红灭 (2秒)
+        BSP_SetLED(LED_RED, false);
+        vTaskDelay(pdMS_TO_TICKS(STEP_TIME_MS));
+        xSemaphoreGive(semRedDone);
+        xSemaphoreTake(semGreenDone, portMAX_DELAY);
     }
 }
-/*-----------------------------------------------------------*/
+
+void vTaskGreen(void *pvParameters) {
+    while (1) {
+        // 周期1: 绿亮 (2秒)
+        BSP_SetLED(LED_GREEN, true);
+        vTaskDelay(pdMS_TO_TICKS(STEP_TIME_MS));
+        xSemaphoreGive(semGreenDone); // 通知红灯任务绿灯完成
+        xSemaphoreTake(semRedDone, portMAX_DELAY); // 等待红灯任务完成
+        
+        // 周期2: 绿灭 (2秒)
+        BSP_SetLED(LED_GREEN, false);
+        vTaskDelay(pdMS_TO_TICKS(STEP_TIME_MS));
+        xSemaphoreGive(semGreenDone);
+        xSemaphoreTake(semRedDone, portMAX_DELAY);
+        
+        // 周期3: 绿灭 (2秒)
+        BSP_SetLED(LED_GREEN, false);
+        vTaskDelay(pdMS_TO_TICKS(STEP_TIME_MS));
+        xSemaphoreGive(semGreenDone);
+        xSemaphoreTake(semRedDone, portMAX_DELAY);
+        
+        // 周期4: 绿亮 (2秒)
+        BSP_SetLED(LED_GREEN, true);
+        vTaskDelay(pdMS_TO_TICKS(STEP_TIME_MS));
+        xSemaphoreGive(semGreenDone);
+        xSemaphoreTake(semRedDone, portMAX_DELAY);
+    }
+}
