@@ -200,7 +200,7 @@ void vWatchDogTask(void *args){
 
 
 /**
- * Simulate extra load, higher priority than normal task
+ * Simulate extra load, with higher priority than normal task
  * 
  * Period of 25ms
  * 
@@ -409,7 +409,7 @@ void vDisplayTask(void *args) {
         xQueuePeek(xQueueBrakePedal, &brake_pedal, (TickType_t)0);
         xQueuePeek(xQueueCruiseControl, &cruise_control, (TickType_t)0);
         
-        sprintf(dspStrng, "%02d%02d", throttle, velocity/10);
+        sprintf(dspStrng, "%2d%2d", throttle, velocity/10);
 
         write_position(position);
         BSP_SetLED(LED_GREEN, gas_pedal);
