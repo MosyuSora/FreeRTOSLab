@@ -5,46 +5,96 @@
 #include "semphr.h"
 #include "bsp.h"
 
-TaskHandle_t    blinkTsk; /* Handle for the LED task. */
 
-/**
- * @brief Blink task.
- * 
- * @param args Task period (uint32_t).
- */
-void blink_task(void *args);
+// shared memory
+int sharedAddress = 0;
 
-/*************************************************************/
 
-/**
- * @brief Main function.
- * 
- * @return int 
- */
+SemaphoreHandle_t xMutex;
+SemaphoreHandle_t xSemaphoreA;//by which B notifies A data has been processed
+SemaphoreHandle_t xSemaphoreB;//by which A notifies B data need to be processed
+
+void vTaskA(void *pvParameters);
+void vTaskB(void *pvParameters);
+
 int main()
 {
-    BSP_Init();             /* Initialize all components on the lab-kit. */
+    BSP_Init();
+   
+    xMutex = xSemaphoreCreateMutex();
+    xSemaphoreA = xSemaphoreCreateBinary();
+    xSemaphoreB = xSemaphoreCreateBinary();
     
-    /* Create the tasks. */
-    xTaskCreate(blink_task, "Blink Task", 512, (void*) 1000, 2, &blinkTsk);
 
+    xTaskCreate(vTaskA, "TaskA", 256, NULL, 1, NULL);
+    xTaskCreate(vTaskB, "TaskB", 256, NULL, 1, NULL);
     
-    vTaskStartScheduler();  /* Start the scheduler. */
+    vTaskStartScheduler();
     
-    while (true) { 
-        sleep_ms(1000); /* Should not reach here... */
+    while(1) {}
+}
+
+void vTaskA(void *pvParameters)
+{
+    int number = 1;
+    
+    while(1)
+    {
+         // unpack mutex
+        xSemaphoreTake(xMutex, portMAX_DELAY);
+        
+        // fill the data
+        sharedAddress = number;
+        printf("Sending   : %d\n", sharedAddress);
+        
+        //pack mutex
+        xSemaphoreGive(xMutex);
+        
+        // pass to TaskB
+        xSemaphoreGive(xSemaphoreB);
+        
+
+        //Blocking to wait semA ....
+
+
+        xSemaphoreTake(xSemaphoreA, portMAX_DELAY);
+        
+        // unpack mutex
+        xSemaphoreTake(xMutex, portMAX_DELAY);
+        
+        // peek share data
+        printf("Receiving : %d\n", sharedAddress);
+
+
+        //pack mutex
+        xSemaphoreGive(xMutex);
+        
+
+        number++;
+        vTaskDelay(500);
+        
+
     }
 }
-/*-----------------------------------------------------------*/
 
-void blink_task(void *args) {
-    TickType_t xLastWakeTime = 0;
-    const TickType_t xPeriod = (int)args;   /* Get period (in ticks) from argument. */
+void vTaskB(void *pvParameters)
+{
+    while(1)
+    {
+        // Wait for message from A
+        xSemaphoreTake(xSemaphoreB, portMAX_DELAY);
+ 
+        
+        //process data
+        xSemaphoreTake(xMutex, portMAX_DELAY);
+        
+        sharedAddress *= -1;
+        
+        xSemaphoreGive(xMutex);
+        
+        // Notify A
+        xSemaphoreGive(xSemaphoreA);
+        
 
-    for (;;) {
-        BSP_ToggleLED(LED_GREEN);
-
-        vTaskDelayUntil(&xLastWakeTime, xPeriod);   /* Wait for the next release. */
     }
 }
-/*-----------------------------------------------------------*/
