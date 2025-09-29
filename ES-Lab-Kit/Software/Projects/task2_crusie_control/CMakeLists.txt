@@ -32,7 +32,7 @@ include(pico_sdk_import.cmake)
 set(FREERTOS_KERNEL_PATH "../../../FreeRTOS-Kernel")
 include(FreeRTOS_Kernel_import.cmake)
 
-project(CruiseControlSkeleton C CXX ASM)
+project(task2_crusie_control C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
@@ -43,17 +43,17 @@ message(BSP_SOURCES="${BSP_SOURCES}")
 
 # Add executable. Default name is the project name, version 0.1
 include_directories(../../bsp) # Add include files for the bsp
-add_executable(CruiseControlSkeleton main.c ${BSP_SOURCES})
+add_executable(task2_crusie_control main.c ${BSP_SOURCES})
 
-pico_set_program_name(CruiseControlSkeleton "CruiseControlSkeleton")
-pico_set_program_version(CruiseControlSkeleton "0.1")
+pico_set_program_name(task2_crusie_control "task2_crusie_control")
+pico_set_program_version(task2_crusie_control "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(CruiseControlSkeleton 1)
-pico_enable_stdio_usb(CruiseControlSkeleton 0)
+pico_enable_stdio_uart(task2_crusie_control 1)
+pico_enable_stdio_usb(task2_crusie_control 0)
 
 # Add the standard library to the build
-target_link_libraries(CruiseControlSkeleton
+target_link_libraries(task2_crusie_control
         pico_stdlib
         pico_multicore
         hardware_spi
@@ -64,8 +64,8 @@ target_link_libraries(CruiseControlSkeleton
         FreeRTOS-Kernel-Heap4)
 
 # Add the standard include files to the build
-target_include_directories(CruiseControlSkeleton PRIVATE
+target_include_directories(task2_crusie_control PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
 )
 
-pico_add_extra_outputs(CruiseControlSkeleton)
+pico_add_extra_outputs(task2_crusie_control)
