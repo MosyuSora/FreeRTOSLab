@@ -204,7 +204,7 @@ void vWatchDogTask(void *args){
  * 
  * Period of 25ms
  * 
- * Read SW17~SW10, determine how busy for each period
+ * Read SW10~SW17, determine how busy for each period
  * 
  * *[11111111]->255/10->25ms/25ms, all lower task starving
  * 
@@ -215,24 +215,24 @@ void vWatchDogTask(void *args){
 void vExtraLoadTask(void *args){
     TickType_t xLastWakeTime = 0;
     const TickType_t xPeriod = (int)args;
-    bool bit0;  /* SW_10*/
-    bool bit1;  /* SW_11*/ 
-    bool bit2;  /* SW_12*/ 
-    bool bit3;  /* SW_13*/ 
-    bool bit4;  /* SW_14*/ 
-    bool bit5;  /* SW_15*/ 
-    bool bit6;  /* SW_16*/ 
-    bool bit7;  /* SW_17*/ 
+    bool bit7;  /* SW_10*/
+    bool bit6;  /* SW_11*/ 
+    bool bit5;  /* SW_12*/ 
+    bool bit4;  /* SW_13*/ 
+    bool bit3;  /* SW_14*/ 
+    bool bit2;  /* SW_15*/ 
+    bool bit1;  /* SW_16*/ 
+    bool bit0;  /* SW_17*/ 
     uint8_t delay_time;   
     for(;;){
-        bit0 = BSP_GetInput(SW_10);
-        bit1 = BSP_GetInput(SW_11);
-        bit2 = BSP_GetInput(SW_12);
-        bit3 = BSP_GetInput(SW_13);
-        bit4 = BSP_GetInput(SW_14);
-        bit5 = BSP_GetInput(SW_15);
-        bit6 = BSP_GetInput(SW_16);
-        bit7 = BSP_GetInput(SW_17);
+        bit7 = BSP_GetInput(SW_10);
+        bit6 = BSP_GetInput(SW_11);
+        bit5 = BSP_GetInput(SW_12);
+        bit4 = BSP_GetInput(SW_13);
+        bit3 = BSP_GetInput(SW_14);
+        bit2 = BSP_GetInput(SW_15);
+        bit1 = BSP_GetInput(SW_16);
+        bit0 = BSP_GetInput(SW_17);
         delay_time = (bit7 << 7) | (bit6 << 6) | (bit5 << 5) | (bit4 << 4) |
                      (bit3 << 3) | (bit2 << 2) | (bit1 << 1) | (bit0 << 0);
         busy_wait(delay_time/10);
