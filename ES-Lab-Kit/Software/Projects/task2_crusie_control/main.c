@@ -1,14 +1,8 @@
 /**
  * @file main.c
- * @author Ingo Sander (ingo@kth.se)
- * @brief Skeleton for cruise control application
- *        The skeleton code runs on the ES-Lab-Kit, 
- *        has very limited functionality and needs to be
- *        modified.
- * @version 0.1
- * @date 2025-09-12
+ * @author Luyu Yang; Zihe Cao;
+ * @date 2025-09-30
  * 
- * @copyright Copyright (c) 2025
  * 
  */
 
