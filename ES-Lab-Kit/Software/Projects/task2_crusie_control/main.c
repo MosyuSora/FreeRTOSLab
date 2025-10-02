@@ -1,6 +1,7 @@
 /**
  * @file main.c
  * @author Luyu Yang; Zihe Cao;
+
  * @date 2025-09-30
  * 
  * 
@@ -118,7 +119,7 @@ int16_t adjust_velocity(int16_t velocity, int8_t acceleration,
  * @param velocity
  * @return <uint16_t> throttle
  */
-uint16_t calcThrottleWithPID(uint16_t target_velocity, uint16_t velocity) {
+uint16_t calc_throttle_with_PID(uint16_t target_velocity, uint16_t velocity) {
     //I know it's not safe for thread... But there's only one task using this...
     static int32_t integral = 0;        
     static int16_t prev_error = 0;      
@@ -302,7 +303,7 @@ void vControlTask(void *args) {
             uint16_t t = throttle + GAS_STEP;
             throttle = (t > 80) ? 80 : t;
         } else if (cruise_control) {
-            throttle = calcThrottleWithPID(target_velocity, velocity);
+            throttle = calc_throttle_with_PID(target_velocity, velocity);
         } else {
             throttle = 0;               
         }
@@ -412,9 +413,9 @@ void vDisplayTask(void *args) {
         BSP_7SegDispString(dspStrng);
 
         //serial debug
-        printf("Throttle: %d\n", throttle);
-        printf("Velocity: %d\n", velocity);
-        printf("Position: %d\n", position);
+        //printf("Throttle: %d\n", throttle);
+        //printf("Velocity: %d\n", velocity);
+        //printf("Position: %d\n", position);
          
         vTaskDelayUntil(&xLastWakeTime, xPeriod); // 每500ms运行一次
     }
