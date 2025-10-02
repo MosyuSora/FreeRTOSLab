@@ -1,12 +1,9 @@
 /**
  * @file main.c
- * @author Ingo Sander (ingo@kth.se)
- * @brief Skeleton for cruise control application
- *        The skeleton code runs on the ES-Lab-Kit, 
- *        has very limited functionality and needs to be
- *        modified.
+ * @author LuyuYang ZiheCao
+ * @brief 
  * @version 0.1
- * @date 2025-09-12
+ * @date 2025-09-30
  * 
  * @copyright Copyright (c) 2025
  * 
@@ -126,7 +123,7 @@ int16_t adjust_velocity(int16_t velocity, int8_t acceleration,
  * @param velocity
  * @return <uint16_t> throttle
  */
-uint16_t calcThrottleWithPID(uint16_t target_velocity, uint16_t velocity) {
+uint16_t calc_throttle_with_PID(uint16_t target_velocity, uint16_t velocity) {
     //I know it's not safe for thread... But there's only one task using this...
     static int32_t integral = 0;        
     static int16_t prev_error = 0;      
@@ -256,7 +253,7 @@ void vControlTask(void *args) {
             uint16_t t = throttle + GAS_STEP;
             throttle = (t > 80) ? 80 : t;
         } else if (cruise_control) {
-            throttle = calcThrottleWithPID(target_velocity, velocity);
+            throttle = calc_throttle_with_PID(target_velocity, velocity);
         } else {
             throttle = 0;               
         }
