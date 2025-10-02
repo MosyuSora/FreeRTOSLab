@@ -186,7 +186,7 @@ void vWatchDogTask(void *args){
     for(;;){
         isFeed = (xSemaphoreTake(xSemaphoreWatchDogFood, xPeriod) == pdTRUE);
         if(!isFeed){
-            printf("System Overload!/n");
+            printf("System Overload!\n");
         }
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
     }
