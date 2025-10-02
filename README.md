@@ -152,7 +152,7 @@ Receiving : -2
 
 * **传感器信号平滑**: 传感器的信号非常的抖, 我们需要采用平均值滤波(或者任何你喜欢的数字滤波方法)进行去抖. 因为赶时间, 于是我们做一个简单的平均值滤波.
 * **数据类型转换**:应当先取绝对值再强转为uint, 不然负值情况下会无法工作
-* 坡度任务的优先级问题: 系统自带的`vVehicleTask`涉及大量数学运算, 占用率非常高. 把坡度任务放在他下面很容易挨饿. 实践上我们把坡度任务放在`vButtonTask`后面, `vVehicleTask`前面, 能起到不错的效果.
+* **坡度任务的优先级问题**: 系统自带的`vVehicleTask`涉及大量数学运算, 占用率非常高. 把坡度任务放在他下面很容易挨饿. 实践上我们把坡度任务放在`vButtonTask`后面, `vVehicleTask`前面, 能起到不错的效果.
 
 下面是程序的任务拆解,具体实现代码在[这里](https://github.com/MosyuSora/FreeRTOSLab/blob/main/ES-Lab-Kit/Software/Projects/task2_conditional_task/main.c#L330)
 
