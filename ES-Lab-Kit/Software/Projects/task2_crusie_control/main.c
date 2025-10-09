@@ -21,6 +21,11 @@
 #define I 1
 #define D 5
 
+typedef struct {
+    int32_t integral;
+    int16_t prev_error;
+} PIDState_t;
+
 /* Definition of handles for tasks */
 TaskHandle_t xWatchDog_handle;   /* Handle for watch dog task */ 
 TaskHandle_t xExtraLoad_handle;  /* Handle for extra load task */  
@@ -50,6 +55,8 @@ QueueHandle_t xQueueThrottle;
 QueueHandle_t xQueueCruiseControl;
 QueueHandle_t xQueueGasPedal;
 QueueHandle_t xQueueBrakePedal;
+QueueHandle_t xQueueOverloadState;
+QueueHandle_t xQueuePidState;
 
 
 /**
@@ -90,7 +97,7 @@ uint16_t adjust_position(uint16_t position, int16_t velocity,
  * @param time_interval 
  * @return 
  */
-int16_t adjust_velocity(int16_t velocity, int8_t acceleration,  
+int16_t adjust_velocity(int16_t velocity, int8_t acceleration,
                         bool brake_pedal, uint16_t time_interval)
 {
     int16_t new_velocity;
@@ -114,24 +121,38 @@ int16_t adjust_velocity(int16_t velocity, int8_t acceleration,
 
 
 /**
+ * Clear the PID controller accumulators stored in the queue so the
+ * integrator and previous error are reset before the next calculation.
+ */
+void reset_pid_controller(void) {
+    PIDState_t reset_state = (PIDState_t){0};
+    if (xQueuePidState != NULL) {
+        xQueueOverwrite(xQueuePidState, &reset_state);
+    }
+}
+
+
+/**
  * Find throttle using PID controller
- * @param target_velocity
- * @param velocity
+ * @param target_velocity desired velocity from cruise control set point
+ * @param velocity current measured velocity
+ * @param state pointer to PID state storage shared through a queue
  * @return <uint16_t> throttle
  */
-uint16_t calc_throttle_with_PID(uint16_t target_velocity, uint16_t velocity) {
-    //I know it's not safe for thread... But there's only one task using this...
-    static int32_t integral = 0;        
-    static int16_t prev_error = 0;      
+uint16_t calc_throttle_with_PID(uint16_t target_velocity, uint16_t velocity, PIDState_t *state) {
+    if (state == NULL) {
+        return 0;
+    }
 
     int16_t error = (int16_t)target_velocity - (int16_t)velocity;
-    integral += error;
+    int16_t previous_error = state->prev_error;
+    state->integral += error;
 
-    int16_t derivative = error - prev_error;
-    prev_error = error;
+    int16_t derivative = error - previous_error;
+    state->prev_error = error;
 
     // PID output
-    int32_t output = P * error + I * integral + D * derivative;
+    int32_t output = P * error + I * state->integral + D * derivative;
 
     // Limit with range 0-80
     if (output < 0) output = 0;
@@ -184,10 +205,20 @@ void vWatchDogTask(void *args){
     TickType_t xLastWakeTime = 0;
     const TickType_t xPeriod = (int)args;//1000ms
     bool isFeed;
+    bool overload_state;
     for(;;){
         isFeed = (xSemaphoreTake(xSemaphoreWatchDogFood, xPeriod) == pdTRUE);
         if(!isFeed){
             printf("System Overload!\n");
+            overload_state = true;
+            if (xQueueOverloadState != NULL) {
+                xQueueOverwrite(xQueueOverloadState, &overload_state);
+            }
+        } else {
+            overload_state = false;
+            if (xQueueOverloadState != NULL) {
+                xQueueOverwrite(xQueueOverloadState, &overload_state);
+            }
         }
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
     }
@@ -248,29 +279,37 @@ void vExtraLoadTask(void *args){
 void vButtonTask(void *args) {
     TickType_t xLastWakeTime = 0;
     const TickType_t xPeriod = (int)args;   /* Get period (in ticks) from argument. */
-    bool btnGas ;
-    bool btnBrake; 
-    bool btnCruise = BSP_GetInput(SW_6);
-    bool value_cruise_control= false;
+    bool btnGas;
+    bool btnBrake;
+    bool prevCruiseInput = BSP_GetInput(SW_6);
+    bool value_cruise_control = false;
 
-    uint16_t now_velocity;
+    uint16_t now_velocity = 0;
     for (;;) {
         btnGas = !BSP_GetInput(SW_7);//According to schematic plot, press btn->low
         btnBrake = !BSP_GetInput(SW_5);
-        if ((BSP_GetInput(SW_6) != btnCruise) && (BSP_GetInput(SW_6) == false)){
-            //at negative edge of SW_6, process cruise logic
-            value_cruise_control ^= 1;//toggle crusie control
-            //overwrite target velocity
-            xQueuePeek(xQueueVelocity, &now_velocity, (TickType_t)0);
-            xQueueOverwrite(xQueueTargetVelocity, &now_velocity);
+        bool currentCruiseInput = BSP_GetInput(SW_6);
+        bool cruiseButtonFallingEdge = (currentCruiseInput != prevCruiseInput) && (currentCruiseInput == false);
+
+        if (cruiseButtonFallingEdge) {
+            if (!value_cruise_control) {
+                xQueuePeek(xQueueVelocity, &now_velocity, (TickType_t)0);
+                if (now_velocity >= 250) {
+                    value_cruise_control = true;
+                    xQueueOverwrite(xQueueTargetVelocity, &now_velocity);
+                }
+            } else {
+                value_cruise_control = false;
+            }
         }
-        btnCruise = BSP_GetInput(SW_6);
-        if (btnBrake){
-            value_cruise_control = false;//use brake to end crusie control
+        prevCruiseInput = currentCruiseInput;
+
+        if (btnBrake || btnGas){
+            value_cruise_control = false;//use brake or gas to end crusie control
         }
         xQueueOverwrite(xQueueGasPedal, &btnGas);
         xQueueOverwrite(xQueueBrakePedal, &btnBrake);
-        xQueueOverwrite(xQueueCruiseControl, &value_cruise_control);   
+        xQueueOverwrite(xQueueCruiseControl, &value_cruise_control);
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
     }
 }
@@ -295,25 +334,46 @@ void vControlTask(void *args) {
     bool cruise_control;
     bool gas_pedal;
     bool brake_pedal;
+    bool prev_cruise_control = false;
 
     for (;;) {
+        xQueuePeek(xQueueCruiseControl, &cruise_control, (TickType_t)0);
+        xQueuePeek(xQueueGasPedal, &gas_pedal, (TickType_t)0);
+        xQueuePeek(xQueueVelocity, &velocity, (TickType_t)0);
+        xQueuePeek(xQueueBrakePedal, &brake_pedal, (TickType_t)0);
+        xQueuePeek(xQueueTargetVelocity, &target_velocity, (TickType_t)0);
+
+        PIDState_t pid_state = {0};
+        if (xQueuePidState != NULL) {
+            if (xQueuePeek(xQueuePidState, &pid_state, (TickType_t)0) != pdTRUE) {
+                pid_state.integral = 0;
+                pid_state.prev_error = 0;
+            }
+        }
+
+        if (cruise_control && !prev_cruise_control) {
+            reset_pid_controller();
+            pid_state.integral = 0;
+            pid_state.prev_error = 0;
+        }
+
         if (brake_pedal) {
             throttle = 0;     // Prevent some stupid-ass press brake and gas at the same time
         } else if (gas_pedal) {
             uint16_t t = throttle + GAS_STEP;
             throttle = (t > 80) ? 80 : t;
         } else if (cruise_control) {
-            throttle = calc_throttle_with_PID(target_velocity, velocity);
+            throttle = calc_throttle_with_PID(target_velocity, velocity, &pid_state);
         } else {
-            throttle = 0;               
+            throttle = 0;
         }
-        xQueuePeek(xQueueCruiseControl, &cruise_control, (TickType_t)0);
-        xQueuePeek(xQueueGasPedal, &gas_pedal, (TickType_t)0);   
-        xQueuePeek(xQueueVelocity, &velocity, (TickType_t)0);     
-        xQueuePeek(xQueueBrakePedal, &brake_pedal, (TickType_t)0);
-        xQueuePeek(xQueueTargetVelocity, &target_velocity, (TickType_t)0);
-        
+        prev_cruise_control = cruise_control;
+
         xQueueOverwrite(xQueueThrottle, &throttle);
+
+        if (xQueuePidState != NULL) {
+            xQueueOverwrite(xQueuePidState, &pid_state);
+        }
 
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
     }
@@ -387,29 +447,42 @@ void vDisplayTask(void *args) {
     TickType_t xLastWakeTime = 0;
     const TickType_t xPeriod = (int)args;   /* Get period (in ticks) from argument. */
 
-    uint16_t velocity; 
-    uint16_t throttle;  
+    uint16_t velocity;
+    uint16_t throttle;
     uint16_t position;
     bool gas_pedal;
     bool brake_pedal;
     bool cruise_control;
+    bool system_overload;
     BSP_7SegClear();
     char dspStrng[9];   // buffer for display
     for (;;) {
-        
+
         xQueuePeek(xQueueVelocity, &velocity, (TickType_t)0);
         xQueuePeek(xQueuePosition, &position, (TickType_t)0);
         xQueuePeek(xQueueThrottle, &throttle, (TickType_t)0);
         xQueuePeek(xQueueGasPedal, &gas_pedal, (TickType_t)0);
         xQueuePeek(xQueueBrakePedal, &brake_pedal, (TickType_t)0);
         xQueuePeek(xQueueCruiseControl, &cruise_control, (TickType_t)0);
-        
+        system_overload = false;
+        if (xQueueOverloadState != NULL) {
+            xQueuePeek(xQueueOverloadState, &system_overload, (TickType_t)0);
+        }
+
         sprintf(dspStrng, "%2d%2d", throttle, velocity/10);
 
         write_position(position);
-        BSP_SetLED(LED_GREEN, gas_pedal);
-        BSP_SetLED(LED_RED, brake_pedal);
-        BSP_SetLED(LED_YELLOW, cruise_control);
+        if (system_overload) {
+            BSP_SetLED(LED_GREEN, false);
+            BSP_SetLED(LED_RED, true);
+            BSP_SetLED(LED_YELLOW, true);
+            BSP_SetLED(LED_BLUE, true);
+        } else {
+            BSP_SetLED(LED_GREEN, gas_pedal);
+            BSP_SetLED(LED_RED, brake_pedal);
+            BSP_SetLED(LED_YELLOW, cruise_control);
+            BSP_SetLED(LED_BLUE, false);
+        }
         BSP_7SegDispString(dspStrng);
 
         //serial debug
@@ -463,6 +536,12 @@ int main()
     xQueueTargetVelocity  = xQueueCreate(1, sizeof(uint16_t));
     xQueuePosition        = xQueueCreate(1, sizeof(uint16_t));
     xQueueThrottle        = xQueueCreate(1, sizeof(uint16_t));
+    xQueueOverloadState   = xQueueCreate(1, sizeof(bool));
+    xQueuePidState        = xQueueCreate(1, sizeof(PIDState_t));
+
+    if (xQueuePidState != NULL) {
+        reset_pid_controller();
+    }
 
     vTaskStartScheduler();  /* Start the scheduler. */
     
